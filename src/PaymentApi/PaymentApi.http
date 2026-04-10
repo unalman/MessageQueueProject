@@ -1,0 +1,22 @@
+@PaymentApi_HostAddress = http://localhost:5082
+@CorrelationId = 00000000-0000-0000-0000-000000000001
+
+### Charge (success)
+POST {{PaymentApi_HostAddress}}/payments/charge
+Content-Type: application/json
+
+{
+  "cardToken": "tok_test_123",
+  "amount": 100.50,
+  "correlationId": "{{CorrelationId}}"
+}
+
+### Charge (fail: amount <= 0)
+POST {{PaymentApi_HostAddress}}/payments/charge
+Content-Type: application/json
+
+{
+  "cardToken": "tok_test_123",
+  "amount": 0,
+  "correlationId": "{{CorrelationId}}"
+}

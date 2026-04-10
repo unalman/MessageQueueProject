@@ -1,0 +1,32 @@
+@OrderApi_HostAddress = http://localhost:5081
+
+### Purchase (success) -> publishes OrderPaid to RabbitMQ
+POST {{OrderApi_HostAddress}}/orders/purchase
+Content-Type: application/json
+
+{
+  "userEmail": "user@example.com",
+  "items": [
+    { "sku": "SKU-1", "quantity": 2 },
+    { "sku": "SKU-2", "quantity": 1 }
+  ],
+  "payment": {
+    "cardToken": "tok_test_123",
+    "amount": 100.50
+  }
+}
+
+### Purchase (fail: payment amount <= 0) -> no publish
+POST {{OrderApi_HostAddress}}/orders/purchase
+Content-Type: application/json
+
+{
+  "userEmail": "user@example.com",
+  "items": [
+    { "sku": "SKU-1", "quantity": 1 }
+  ],
+  "payment": {
+    "cardToken": "tok_test_123",
+    "amount": 0
+  }
+}
