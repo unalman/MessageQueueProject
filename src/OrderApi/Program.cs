@@ -131,35 +131,15 @@ internal sealed class RabbitMqConnectionProvider(IOptions<RabbitMqOptions> optio
 
             _connection?.Dispose();
 
-            var cfg = options.Value;
+            _connection = await RabbitMqRetryHelper.ExecuteWithRetryAsync(
+                async token => await options.Value.CreateFactory().CreateConnectionAsync(token),
+                logger,
+                "RabbitMQ connect",
+                cancellationToken,
+                maxDelaySeconds: 30);
 
-            var attempt = 0;
-            while (true)
-            {
-                attempt++;
-                try
-                {
-                    var factory = new ConnectionFactory
-                    {
-                        HostName = cfg.Host,
-                        VirtualHost = cfg.VirtualHost,
-                        UserName = cfg.User,
-                        Password = cfg.Pass,
-                        AutomaticRecoveryEnabled = true,
-                        NetworkRecoveryInterval = TimeSpan.FromSeconds(5)
-                    };
-
-                    _connection = await factory.CreateConnectionAsync(cancellationToken);
-                    logger.LogInformation("RabbitMQ connected to {Host}", cfg.Host);
-                    return _connection;
-                }
-                catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
-                {
-                    var delaySeconds = Math.Min(30, (int)Math.Pow(2, Math.Min(5, attempt)));
-                    logger.LogWarning(ex, "RabbitMQ connect attempt {Attempt} failed. Retrying in {DelaySeconds}s...", attempt, delaySeconds);
-                    await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
-                }
-            }
+            logger.LogInformation("RabbitMQ connected to {Host}", options.Value.Host);
+            return _connection;
         }
         finally
         {

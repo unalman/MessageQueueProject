@@ -4,7 +4,7 @@ namespace StockWorker;
 
 public sealed class OrderPaidStockHandler(InMemoryStockStore stockStore, ILogger<OrderPaidStockHandler> logger)
 {
-    public Task HandleAsync(OrderPaid message, CancellationToken cancellationToken)
+    public Task HandleAsync(OrderPaid message, CancellationToken _)
     {
         foreach (var item in message.Items)
         {

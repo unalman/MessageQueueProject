@@ -1,6 +1,5 @@
 using Contracts;
 using EmailWorker;
-using Microsoft.Extensions.Options;
 
 var builder = Host.CreateApplicationBuilder(args);
 

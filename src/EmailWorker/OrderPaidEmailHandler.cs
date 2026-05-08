@@ -4,7 +4,7 @@ namespace EmailWorker;
 
 public sealed class OrderPaidEmailHandler(ILogger<OrderPaidEmailHandler> logger)
 {
-    public Task HandleAsync(OrderPaid message, CancellationToken cancellationToken)
+    public Task HandleAsync(OrderPaid message, CancellationToken _)
     {
         logger.LogInformation(
             "Mail sent to {UserEmail} for OrderId {OrderId} (CorrelationId: {CorrelationId})",

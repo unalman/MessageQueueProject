@@ -1,5 +1,4 @@
 using Contracts;
-using Microsoft.Extensions.Options;
 using StockWorker;
 
 var builder = Host.CreateApplicationBuilder(args);
