@@ -1,9 +1,8 @@
-using System.Net.Http.Json;
-using System.Text;
-using System.Text.Json;
 using Contracts;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
+using System.Text;
+using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -61,10 +60,10 @@ app.MapPost("/orders/purchase", async (
     if (chargeResult is null || !chargeResult.Success)
         return Results.BadRequest(new { error = "payment failed", detail = chargeResult?.Message });
 
-    var paidEvent = new Contracts.OrderPaid(
+    var paidEvent = new OrderPaid(
         orderId,
         request.UserEmail,
-        request.Items.Select(i => new Contracts.OrderItem(i.Sku, i.Quantity)).ToArray(),
+        request.Items.Select(i => new OrderItem(i.Sku, i.Quantity)).ToArray(),
         DateTime.UtcNow,
         correlationId);
 

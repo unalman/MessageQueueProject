@@ -58,23 +58,8 @@ public abstract class RabbitMqSubscriberService<TMessage>(
         await _channel.BasicQosAsync(0, 1, false, stoppingToken);
 
         var consumer = new AsyncEventingBasicConsumer(_channel);
-        consumer.ReceivedAsync += async (_, args) =>
-        {
-            try
-            {
-                var message = JsonSerializer.Deserialize<TMessage>(Encoding.UTF8.GetString(args.Body.Span));
-                if (message is null)
-                    throw new InvalidOperationException($"Invalid message body for {typeof(TMessage).Name}");
-
-                await HandleMessageAsync(message, stoppingToken);
-                await _channel.BasicAckAsync(args.DeliveryTag, multiple: false, cancellationToken: stoppingToken);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to process message from {QueueName}", QueueName);
-                await _channel.BasicNackAsync(args.DeliveryTag, multiple: false, requeue: true, cancellationToken: stoppingToken);
-            }
-        };
+        consumer.ReceivedAsync += async (_, args)
+         => await ProcessMessageAsync(args, stoppingToken);
 
         await _channel.BasicConsumeAsync(
             queue: QueueName,
@@ -86,11 +71,41 @@ public abstract class RabbitMqSubscriberService<TMessage>(
         await Task.Delay(Timeout.Infinite, stoppingToken);
     }
 
+    protected virtual async Task ProcessMessageAsync(
+        BasicDeliverEventArgs args,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var message = JsonSerializer.Deserialize<TMessage>(
+                Encoding.UTF8.GetString(args.Body.Span));
+
+            if (message is null)
+                throw new InvalidOperationException();
+
+            await HandleMessageAsync(message, cancellationToken);
+
+            await _channel!.BasicAckAsync(
+                args.DeliveryTag,
+                false,
+                cancellationToken);
+        }
+        catch
+        {
+            await _channel!.BasicNackAsync(
+                args.DeliveryTag,
+                false,
+                true,
+                cancellationToken);
+        }
+    }
+
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         await base.StopAsync(cancellationToken);
         if (_channel is not null)
-            await _channel.CloseAsync(cancellationToken);
+            await _channel.DisposeAsync();
+
         _connection?.Dispose();
     }
 
