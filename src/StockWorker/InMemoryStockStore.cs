@@ -36,5 +36,12 @@ public sealed class InMemoryStockStore
             }
         }
     }
+
+    public int? GetStock(string sku)
+    {
+        return _stock.TryGetValue(sku, out var stock)
+            ? stock
+            : null;
+    }
 }
 

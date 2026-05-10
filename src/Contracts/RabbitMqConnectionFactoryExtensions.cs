@@ -9,6 +9,7 @@ public static class RabbitMqConnectionFactoryExtensions
         return new ConnectionFactory
         {
             HostName = options.Host,
+            Port = options.Port,
             VirtualHost = options.VirtualHost,
             UserName = options.User,
             Password = options.Pass,
