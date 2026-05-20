@@ -1,10 +1,12 @@
 ﻿using Contracts;
+using Messaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Text.Json;
 
 namespace Contract.Tests
 {
-    public class TestOrderPaidSubscriber : RabbitMqSubscriberService<OrderPaid>
+    public class TestOrderPaidSubscriber : RabbitMqSubscriberService
     {
         public bool HandleCalled { get; private set; }
 
@@ -16,11 +18,15 @@ namespace Contract.Tests
 
         protected override string QueueName => "orders";
 
-        protected override string RoutingKey => "order.paid";
+        protected override List<string> RoutingKeys => new List<string>() { "order.paid" };
 
-        protected override Task HandleMessageAsync(OrderPaid message, CancellationToken cancellationToken)
+        protected Task HandleMessageAsync(string message, CancellationToken cancellationToken)
         {
-            HandleCalled = true;
+            var order = JsonSerializer.Deserialize<OrderPaid>(message);
+            if (order is not null)
+            {
+                HandleCalled = true;
+            }
             return Task.CompletedTask;
         }
     }

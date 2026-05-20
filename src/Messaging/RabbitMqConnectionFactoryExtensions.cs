@@ -1,6 +1,6 @@
 using RabbitMQ.Client;
 
-namespace Contracts;
+namespace Messaging;
 
 public static class RabbitMqConnectionFactoryExtensions
 {

@@ -1,11 +1,12 @@
 ﻿using Contracts;
+using Messaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client.Events;
 
 namespace Contract.Tests
 {
-    public sealed class FailingSubscriber : RabbitMqSubscriberService<OrderPaid>
+    public class FailingSubscriber : RabbitMqSubscriberService
     {
         public FailingSubscriber(
             IOptions<RabbitMqOptions> options,
@@ -15,9 +16,9 @@ namespace Contract.Tests
 
         protected override string QueueName => "orders";
 
-        protected override string RoutingKey => "order.paid";
+        protected override List<string> RoutingKeys => new List<string>() { "order.paid" };
 
-        protected override Task HandleMessageAsync(OrderPaid message, CancellationToken cancellationToken)
+        protected void HandleMessageAsync(OrderPaid message)
         {
             throw new Exception("processing failed");
         }

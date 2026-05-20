@@ -1,5 +1,6 @@
 ﻿using Contracts;
 using FluentAssertions;
+using Messaging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using RabbitMQ.Client;
@@ -36,7 +37,7 @@ namespace StockWorker.Tests
 
                     services.AddSingleton<OrderPaidStockHandler>();
                     services.AddSingleton<InMemoryStockStore>();
-                    services.AddHostedService<OrderPaidStockSubscriber>();
+                    services.AddHostedService<StockSagaConsumer>();
                 })
                 .Build();
 
@@ -61,8 +62,7 @@ namespace StockWorker.Tests
                 [
                     new OrderItem("SKU-1", 2)
                 ],
-                DateTime.UtcNow,
-                Guid.NewGuid()
+                DateTime.UtcNow
             );
 
             var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(message));

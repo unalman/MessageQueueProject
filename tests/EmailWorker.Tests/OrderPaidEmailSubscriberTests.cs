@@ -1,10 +1,11 @@
-﻿using Contracts;
+﻿using Messaging;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using RabbitMQ.Client;
 using System.Text;
 using System.Text.Json;
+using Contracts;
 
 namespace EmailWorker.Tests
 {
@@ -62,8 +63,7 @@ namespace EmailWorker.Tests
                 [
                     new OrderItem("ABC", 2)
                 ],
-                DateTime.UtcNow,
-                Guid.NewGuid()
+                DateTime.UtcNow
             );
 
             var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(message));

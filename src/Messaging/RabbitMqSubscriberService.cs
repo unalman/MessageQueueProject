@@ -1,23 +1,23 @@
 using System.Text;
-using System.Text.Json;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
-namespace Contracts;
+namespace Messaging;
 
-public abstract class RabbitMqSubscriberService<TMessage>(
+public abstract class RabbitMqSubscriberService(
     IOptions<RabbitMqOptions> options,
     ILogger logger) : BackgroundService
 {
     private IConnection? _connection;
     private IChannel? _channel;
+    private readonly Dictionary<string, Func<string, CancellationToken, Task>> _handlers
+    = new();
 
     protected abstract string QueueName { get; }
-    protected abstract string RoutingKey { get; }
-    protected abstract Task HandleMessageAsync(TMessage message, CancellationToken cancellationToken);
+    protected abstract List<string> RoutingKeys { get; }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -48,12 +48,15 @@ public abstract class RabbitMqSubscriberService<TMessage>(
             arguments: null,
             cancellationToken: stoppingToken);
 
-        await _channel.QueueBindAsync(
-            queue: QueueName,
-            exchange: MessagingConstants.EventsExchangeName,
-            routingKey: RoutingKey,
-            arguments: null,
-            cancellationToken: stoppingToken);
+        foreach (var key in RoutingKeys)
+        {
+            await _channel.QueueBindAsync(
+                queue: QueueName,
+                exchange: MessagingConstants.EventsExchangeName,
+                routingKey: key,
+                arguments: null,
+                cancellationToken: stoppingToken);
+        }
 
         await _channel.BasicQosAsync(0, 1, false, stoppingToken);
 
@@ -77,13 +80,14 @@ public abstract class RabbitMqSubscriberService<TMessage>(
     {
         try
         {
-            var message = JsonSerializer.Deserialize<TMessage>(
-                Encoding.UTF8.GetString(args.Body.Span));
+            var routingKey = args.RoutingKey;
 
-            if (message is null)
-                throw new InvalidOperationException();
+            var body = Encoding.UTF8.GetString(args.Body.Span);
 
-            await HandleMessageAsync(message, cancellationToken);
+            if (!_handlers.TryGetValue(routingKey, out var handler))
+                throw new InvalidOperationException($"Handler not found for {routingKey}");
+
+            await handler(body, cancellationToken);
 
             await _channel!.BasicAckAsync(
                 args.DeliveryTag,
@@ -114,6 +118,13 @@ public abstract class RabbitMqSubscriberService<TMessage>(
         _channel?.Dispose();
         _connection?.Dispose();
         base.Dispose();
+    }
+
+    protected void RegisterHandler(
+    string routingKey,
+    Func<string, CancellationToken, Task> handler)
+    {
+        _handlers[routingKey] = handler;
     }
 }
 

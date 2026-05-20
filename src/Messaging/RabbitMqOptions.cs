@@ -1,4 +1,4 @@
-namespace Contracts;
+namespace Messaging;
 
 public sealed class RabbitMqOptions
 {

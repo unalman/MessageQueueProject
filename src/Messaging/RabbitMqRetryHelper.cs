@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace Contracts;
+namespace Messaging;
 
 public static class RabbitMqRetryHelper
 {

@@ -1,11 +1,10 @@
-using Contracts;
+using Messaging;
 using StockWorker;
 
 var builder = Host.CreateApplicationBuilder(args);
 
 builder.Services.AddSingleton<InMemoryStockStore>();
-builder.Services.AddSingleton<OrderPaidStockHandler>();
-builder.Services.AddHostedService<OrderPaidStockSubscriber>();
+builder.Services.AddHostedService<StockSagaConsumer>();
 
 builder.Services.AddOptions<RabbitMqOptions>()
     .Bind(builder.Configuration.GetSection("RabbitMq"))

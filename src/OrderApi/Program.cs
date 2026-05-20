@@ -1,8 +1,7 @@
-using Contracts;
-using Microsoft.Extensions.Options;
-using RabbitMQ.Client;
-using System.Text;
-using System.Text.Json;
+using Contracts.Models;
+using Contracts.Events;
+using Messaging;
+using OrderApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,6 +19,8 @@ builder.Services.AddHttpClient("PaymentApi", client =>
 });
 
 builder.Services.AddSingleton<RabbitMqConnectionProvider>();
+
+builder.Services.AddHostedService<OrderSagaConsumer>();
 
 var app = builder.Build();
 
@@ -45,29 +46,18 @@ app.MapPost("/orders/purchase", async (
         return Results.BadRequest(new { error = "payment.cardToken and payment.amount > 0 are required" });
 
     var orderId = Guid.NewGuid();
-    var correlationId = Guid.NewGuid();
+    var sagaId = Guid.NewGuid();
 
-    var client = httpClientFactory.CreateClient("PaymentApi");
-    var paymentResponse = await client.PostAsJsonAsync(
-        "/payments/charge",
-        new ChargeRequest(request.Payment.CardToken, request.Payment.Amount, correlationId),
-        cancellationToken);
-
-    if (!paymentResponse.IsSuccessStatusCode)
-        return Results.BadRequest(new { error = "payment failed" });
-
-    var chargeResult = await paymentResponse.Content.ReadFromJsonAsync<ChargeResponse>(cancellationToken: cancellationToken);
-    if (chargeResult is null || !chargeResult.Success)
-        return Results.BadRequest(new { error = "payment failed", detail = chargeResult?.Message });
-
-    var paidEvent = new OrderPaid(
+    var orderCreatedEvent = new OrderCreatedEvent(
         orderId,
         request.UserEmail,
         request.Items.Select(i => new OrderItem(i.Sku, i.Quantity)).ToArray(),
-        DateTime.UtcNow,
-        correlationId);
+        DateTime.UtcNow)
+    {
+        SagaId = sagaId
+    };
 
-    await rabbitMq.PublishAsync(paidEvent, cancellationToken);
+    await rabbitMq.PublishAsync(orderCreatedEvent, MessagingConstants.OrderCreatedEventsRoutingKey, cancellationToken);
 
     return Results.Ok(new { orderId, status = "paid" });
 });
@@ -80,76 +70,3 @@ internal sealed record PurchasePayment(string CardToken, decimal Amount);
 
 internal sealed record ChargeRequest(string CardToken, decimal Amount, Guid CorrelationId);
 internal sealed record ChargeResponse(bool Success, string? Message);
-
-internal sealed class RabbitMqConnectionProvider(IOptions<RabbitMqOptions> options, ILogger<RabbitMqConnectionProvider> logger) : IAsyncDisposable
-{
-    private readonly SemaphoreSlim _gate = new(1, 1);
-    private IConnection? _connection;
-
-    public async Task PublishAsync(OrderPaid message, CancellationToken cancellationToken)
-    {
-        var connection = await GetOrCreateConnectionAsync(cancellationToken);
-        await using var channel = await connection.CreateChannelAsync(cancellationToken: cancellationToken);
-
-        await channel.ExchangeDeclareAsync(
-            exchange: MessagingConstants.EventsExchangeName,
-            type: ExchangeType.Topic,
-            durable: true,
-            autoDelete: false,
-            arguments: null,
-            cancellationToken: cancellationToken);
-
-        var bodyBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(message));
-        var props = new BasicProperties
-        {
-            DeliveryMode = DeliveryModes.Persistent,
-            ContentType = "application/json"
-        };
-
-        await channel.BasicPublishAsync(
-            exchange: MessagingConstants.EventsExchangeName,
-            routingKey: MessagingConstants.OrderPaidRoutingKey,
-            mandatory: false,
-            basicProperties: props,
-            body: bodyBytes,
-            cancellationToken: cancellationToken);
-
-        logger.LogInformation("Published OrderPaid event for OrderId {OrderId}", message.OrderId);
-    }
-
-    private async Task<IConnection> GetOrCreateConnectionAsync(CancellationToken cancellationToken)
-    {
-        if (_connection is { IsOpen: true })
-            return _connection;
-
-        await _gate.WaitAsync(cancellationToken);
-        try
-        {
-            if (_connection is { IsOpen: true })
-                return _connection;
-
-            _connection?.Dispose();
-
-            _connection = await RabbitMqRetryHelper.ExecuteWithRetryAsync(
-                async token => await options.Value.CreateFactory().CreateConnectionAsync(token),
-                logger,
-                "RabbitMQ connect",
-                cancellationToken,
-                maxDelaySeconds: 30);
-
-            logger.LogInformation("RabbitMQ connected to {Host}", options.Value.Host);
-            return _connection;
-        }
-        finally
-        {
-            _gate.Release();
-        }
-    }
-
-    public ValueTask DisposeAsync()
-    {
-        _connection?.Dispose();
-        _gate.Dispose();
-        return ValueTask.CompletedTask;
-    }
-}

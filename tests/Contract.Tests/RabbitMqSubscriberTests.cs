@@ -1,4 +1,5 @@
 ﻿using Contracts;
+using Messaging;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -36,8 +37,7 @@ namespace Contract.Tests
                [
                    new OrderItem("ABC-123", 2)
                ],
-               DateTime.UtcNow,
-               Guid.NewGuid()
+               DateTime.UtcNow
             );
 
             var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(orderPaid));
@@ -85,8 +85,7 @@ namespace Contract.Tests
                 [
                     new OrderItem("ABC", 2)
                 ],
-                DateTime.UtcNow,
-                Guid.NewGuid()
+                DateTime.UtcNow
             );
 
             var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(orderPaid));
@@ -156,10 +155,10 @@ namespace Contract.Tests
             channelMock.Verify(x => x.DisposeAsync(), Times.Once);
         }
 
-        private static void SetPrivateChannel(RabbitMqSubscriberService<OrderPaid> service,
+        private static void SetPrivateChannel(RabbitMqSubscriberService service,
             IChannel channel)
         {
-            var field = typeof(RabbitMqSubscriberService<OrderPaid>)
+            var field = typeof(RabbitMqSubscriberService)
                 .GetField("_channel",
                     BindingFlags.Instance | BindingFlags.NonPublic);
 
