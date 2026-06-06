@@ -8,11 +8,11 @@ namespace EmailWorker
     public sealed class EmailSagaConsumer : RabbitMqSubscriberService
     {
         private readonly ILogger<EmailSagaConsumer> _logger;
-        private readonly RabbitMqConnectionProvider _rabbitMq;
+        private readonly IRabbitMqPublisher _rabbitMq;
         public EmailSagaConsumer(
             IOptions<RabbitMqOptions> options,
             ILogger<EmailSagaConsumer> logger,
-            RabbitMqConnectionProvider rabbitMq) : base(options, logger)
+            IRabbitMqPublisher rabbitMq) : base(options, logger)
         {
             _logger = logger;
             _rabbitMq = rabbitMq;
@@ -27,7 +27,7 @@ namespace EmailWorker
             MessagingConstants.OrderCompletedEventsRoutingKey
         };
 
-        private async Task HandleOrderCompletedAsync(string body, CancellationToken token)
+        public async Task HandleOrderCompletedAsync(string body, CancellationToken token)
         {
             var message = JsonSerializer.Deserialize<OrderCompletedEvent>(body);
             if (message is null)
@@ -63,7 +63,7 @@ namespace EmailWorker
                     throw;
 
                 await _rabbitMq.PublishAsync(
-                    new OrderCompeletedEvent(message.OrderId, message.UserEmail)
+                    new OrderCompletedEvent(message.OrderId, message.UserEmail)
                     {
                         SagaId = message.SagaId,
                         RetryCount = retryCount + 1

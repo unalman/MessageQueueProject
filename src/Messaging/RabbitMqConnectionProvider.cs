@@ -8,8 +8,9 @@ using System.Text.Json;
 namespace Messaging
 {
     public sealed class RabbitMqConnectionProvider(
+        IRabbitMqConnectionFactory factory,
         IOptions<RabbitMqOptions> options,
-        ILogger<RabbitMqConnectionProvider> logger) : IAsyncDisposable
+        ILogger<RabbitMqConnectionProvider> logger) : IAsyncDisposable, IRabbitMqPublisher
     {
         private readonly SemaphoreSlim _gate = new(1, 1);
         private IConnection? _connection;
@@ -47,6 +48,10 @@ namespace Messaging
                 body: bodyBytes,
                 cancellationToken: token);
 
+            logger.LogInformation(
+"Exchange Name: {Exchange}",
+MessagingConstants.EventsExchangeName);
+
             logger.LogInformation("Published event {EventType} with SagaId {SagaId}", typeof(T).Name, message.SagaId);
         }
 
@@ -65,7 +70,7 @@ namespace Messaging
                 _connection?.Dispose();
 
                 _connection = await RabbitMqRetryHelper.ExecuteWithRetryAsync(
-                    async token => await options.Value.CreateFactory().CreateConnectionAsync(token),
+                    async token => await factory.CreateConnectionAsync(token),
                     logger,
                     "RabbitMQ connect",
                     token,

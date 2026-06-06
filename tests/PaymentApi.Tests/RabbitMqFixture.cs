@@ -1,7 +1,6 @@
-﻿using RabbitMQ.Client;
-using Testcontainers.RabbitMq;
+﻿using Testcontainers.RabbitMq;
 
-namespace EmailWorker.Tests
+namespace PaymentApi.Tests
 {
     public class RabbitMqFixture : IAsyncLifetime
     {

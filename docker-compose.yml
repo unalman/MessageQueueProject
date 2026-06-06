@@ -25,6 +25,9 @@ services:
       - "5082:8080"
     environment:
       ASPNETCORE_URLS: http://+:8080
+      RabbitMq__Host: rabbitmq
+      RabbitMq__User: guest
+      RabbitMq__Pass: guest
 
   orderapi:
     build:

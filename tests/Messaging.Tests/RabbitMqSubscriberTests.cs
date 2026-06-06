@@ -1,5 +1,5 @@
-﻿using Contracts;
-using Messaging;
+﻿using Contracts.Events;
+using Contracts.Models;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -10,7 +10,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 
-namespace Contract.Tests
+namespace Messaging.Tests
 {
     public class RabbitMqSubscriberTests
     {
@@ -31,23 +31,24 @@ namespace Contract.Tests
 
             SetPrivateChannel(service, channelMock.Object);
 
-            var orderPaid = new OrderPaid(
+            var orderCreatedEvent = new OrderCreatedEvent(
                Guid.NewGuid(),
                "test@test.com",
                [
-                   new OrderItem("ABC-123", 2)
+                   new OrderItem("ABC", 2)
                ],
-               DateTime.UtcNow
-            );
+               DateTime.UtcNow,
+               new Payment("card123", 2)
+           );
 
-            var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(orderPaid));
+            var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(orderCreatedEvent));
 
             var args = new BasicDeliverEventArgs(
                 consumerTag: "test-consumer",
                 deliveryTag: 1,
                 redelivered: false,
                 exchange: "events",
-                routingKey: "order.paid",
+                routingKey: MessagingConstants.OrderCreatedEventsRoutingKey,
                 properties: null!,
                 body: body
             );
@@ -60,7 +61,43 @@ namespace Contract.Tests
                 x.BasicAckAsync(1, false, It.IsAny<CancellationToken>()),
                 Times.Once);
 
+            channelMock.Verify(x =>
+                x.BasicNackAsync(1, false, true, It.IsAny<CancellationToken>()), Times.Never);
+
             service.HandleCalled.Should().BeTrue();
+        }
+
+        [Fact]
+        public async Task ProcessMessageAsync_Should_Nack_When_Handler_Not_Found()
+        {
+            var channelMock = new Mock<IChannel>();
+
+            channelMock.Setup(x => x.BasicNackAsync(
+                It.IsAny<ulong>(),
+                false,
+                true,
+                It.IsAny<CancellationToken>()));
+
+            var service = CreateSubscriber();
+
+            SetPrivateChannel(service, channelMock.Object);
+
+            var body = Encoding.UTF8.GetBytes("{}");
+
+            var args = new BasicDeliverEventArgs(
+                consumerTag: "test",
+                deliveryTag: 1,
+                redelivered: false,
+                exchange: "events",
+                routingKey: "unknown.key",
+                properties: null!,
+                body: body
+            );
+
+            await service.InvokeProcessMessageAsync(args, CancellationToken.None);
+
+            channelMock.Verify(
+                x => x.BasicNackAsync(1, false, true, It.IsAny<CancellationToken>()), Times.Once);
         }
 
         [Fact]
@@ -79,16 +116,17 @@ namespace Contract.Tests
 
             SetPrivateChannel(service, channelMock.Object);
 
-            var orderPaid = new OrderPaid(
+            var orderCreatedEvent = new OrderCreatedEvent(
                 Guid.NewGuid(),
                 "test@test.com",
                 [
                     new OrderItem("ABC", 2)
                 ],
-                DateTime.UtcNow
+                DateTime.UtcNow,
+                new Payment("card123", 2)
             );
 
-            var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(orderPaid));
+            var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(orderCreatedEvent));
 
             var args = new BasicDeliverEventArgs(
                 consumerTag: "test-consumer",
@@ -138,7 +176,7 @@ namespace Contract.Tests
             channelMock.Verify(x => x.BasicAckAsync(It.IsAny<ulong>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
         }
         [Fact]
-        public async Task StopAsync_Shoud_Close_Channel()
+        public async Task StopAsync_Should_Close_Channel()
         {
             var channelMock = new Mock<IChannel>();
 

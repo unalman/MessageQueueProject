@@ -6,5 +6,6 @@ namespace Contracts.Events
      Guid OrderId,
      string UserEmail,
      IReadOnlyList<OrderItem> Items,
-     DateTime PaidAtUtc) : IntegrationEvent;
+     DateTime PaidAtUtc,
+     Payment payment) : IntegrationEvent;
 }

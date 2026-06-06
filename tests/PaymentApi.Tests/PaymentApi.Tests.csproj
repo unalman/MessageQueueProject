@@ -21,7 +21,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\..\src\StockWorker\StockWorker.csproj" />
+	  <ProjectReference Include="..\..\src\PaymentApi\PaymentApi.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>

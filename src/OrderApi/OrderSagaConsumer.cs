@@ -8,11 +8,11 @@ namespace OrderApi
     public sealed class OrderSagaConsumer : RabbitMqSubscriberService
     {
         private readonly ILogger<OrderSagaConsumer> _logger;
-        private readonly RabbitMqConnectionProvider _rabbitMq;
+        private readonly IRabbitMqPublisher _rabbitMq;
         public OrderSagaConsumer(
            IOptions<RabbitMqOptions> options,
            ILogger<OrderSagaConsumer> logger,
-           RabbitMqConnectionProvider rabbitMq) : base(options, logger)
+           IRabbitMqPublisher rabbitMq) : base(options, logger)
         {
             _logger = logger;
             _rabbitMq = rabbitMq;
@@ -30,29 +30,33 @@ namespace OrderApi
             MessagingConstants.StockReservedOrderEventsRoutingKey
         };
 
-        private Task HandlePaymentFailedAsync(
+        public async Task HandlePaymentFailedAsync(
             string body,
             CancellationToken token)
         {
             var message =
                 JsonSerializer.Deserialize<PaymentFailedEvent>(body);
 
+            if (message is null)
+                return;
+
             // order status  = cancelled
-            return Task.CompletedTask;
         }
 
-        private Task HandlePaymentRefundedAsync(
+        public async Task HandlePaymentRefundedAsync(
             string body,
             CancellationToken token)
         {
             var message =
                 JsonSerializer.Deserialize<PaymentRefundedEvent>(body);
 
+            if (message is null)
+                return;
+
             // order status = refunded
-            return Task.CompletedTask;
         }
 
-        private async Task HandleStockReservedAsync(
+        public async Task HandleStockReservedAsync(
             string body,
             CancellationToken token)
         {

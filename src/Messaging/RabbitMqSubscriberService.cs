@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -93,6 +94,14 @@ public abstract class RabbitMqSubscriberService(
                 args.DeliveryTag,
                 false,
                 cancellationToken);
+        }
+        catch (JsonException)
+        {
+            await _channel!.BasicNackAsync(
+                   args.DeliveryTag,
+                   false,
+                   false,
+                   cancellationToken);
         }
         catch
         {

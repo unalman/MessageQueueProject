@@ -4,11 +4,9 @@ using StockWorker;
 var builder = Host.CreateApplicationBuilder(args);
 
 builder.Services.AddSingleton<InMemoryStockStore>();
-builder.Services.AddHostedService<StockSagaConsumer>();
 
-builder.Services.AddOptions<RabbitMqOptions>()
-    .Bind(builder.Configuration.GetSection("RabbitMq"))
-    .ValidateOnStart();
+builder.Services.AddRabbitMqMessaging(builder.Configuration);
+builder.Services.AddHostedService<StockSagaConsumer>();
 
 var host = builder.Build();
 host.Run();

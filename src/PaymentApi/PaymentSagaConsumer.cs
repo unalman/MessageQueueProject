@@ -7,25 +7,31 @@ namespace PaymentApi
 {
     public sealed class PaymentSagaConsumer : RabbitMqSubscriberService
     {
-        private readonly RabbitMqConnectionProvider _rabbitMq;
+        private readonly IRabbitMqPublisher _rabbitMq;
+        private readonly IPaymentService _paymentService;
         private readonly ILogger<PaymentSagaConsumer> _logger;
         public PaymentSagaConsumer(
             IOptions<RabbitMqOptions> options,
             ILogger<PaymentSagaConsumer> logger,
-            RabbitMqConnectionProvider rabbitMq)
+            IRabbitMqPublisher rabbitMq,
+            IPaymentService paymentService)
             : base(options, logger)
         {
             _rabbitMq = rabbitMq;
             _logger = logger;
+            _paymentService = paymentService;
             RegisterHandler(MessagingConstants.OrderCreatedEventsRoutingKey, HandleOrderCreatedAsync);
             RegisterHandler(MessagingConstants.StockFailedOrderEventsRoutingKey, HandleStockFailedAsync);
         }
         protected override string QueueName => MessagingConstants.PaymentOrderEventsQueueName;
 
         protected override List<string> RoutingKeys
-            => new List<string>() { MessagingConstants.OrderCreatedEventsRoutingKey, MessagingConstants.StockFailedOrderEventsRoutingKey };
+            => new List<string>() {
+                MessagingConstants.OrderCreatedEventsRoutingKey,
+                MessagingConstants.StockFailedOrderEventsRoutingKey
+            };
 
-        private async Task HandleOrderCreatedAsync(string body, CancellationToken token)
+        public async Task HandleOrderCreatedAsync(string body, CancellationToken token)
         {
             var message = JsonSerializer.Deserialize<OrderCreatedEvent>(body);
             if (message is null)
@@ -33,9 +39,9 @@ namespace PaymentApi
 
             try
             {
-                var paymentSucceeded = true;
+                var isPaymentSucceeded = await _paymentService.PayAsync(message.payment);
 
-                if (!paymentSucceeded)
+                if (!isPaymentSucceeded)
                 {
                     await _rabbitMq.PublishAsync(
                       new PaymentFailedEvent(message.OrderId, "Card declined")
@@ -67,9 +73,8 @@ namespace PaymentApi
             }
 
         }
-        private async Task HandleStockFailedAsync(
-            string body,
-            CancellationToken token)
+
+        public async Task HandleStockFailedAsync(string body, CancellationToken token)
         {
             var message = JsonSerializer.Deserialize<StockFailedEvent>(body);
 

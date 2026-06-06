@@ -7,6 +7,9 @@ namespace StockWorker.Tests
         private readonly RabbitMqContainer _container =
             new RabbitMqBuilder("rabbitmq:3-management").Build();
 
+        public string Username => "rabbitmq";
+        public string Password => "rabbitmq";
+
         public async Task InitializeAsync()
         {
             await _container.StartAsync();

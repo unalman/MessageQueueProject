@@ -9,12 +9,12 @@ public sealed class StockSagaConsumer : RabbitMqSubscriberService
 {
     private readonly InMemoryStockStore _stockStore;
     private readonly ILogger<StockSagaConsumer> _logger;
-    private readonly RabbitMqConnectionProvider _rabbitMq;
+    private readonly IRabbitMqPublisher _rabbitMq;
     public StockSagaConsumer(
         IOptions<RabbitMqOptions> options,
         ILogger<StockSagaConsumer> logger,
         InMemoryStockStore stockStore,
-        RabbitMqConnectionProvider rabbitMq) : base(options, logger)
+        IRabbitMqPublisher rabbitMq) : base(options, logger)
     {
         _stockStore = stockStore;
         _rabbitMq = rabbitMq;
@@ -76,13 +76,21 @@ public sealed class StockSagaConsumer : RabbitMqSubscriberService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Stock failed for order {OrderId}", message.OrderId);
-            await _rabbitMq.PublishAsync(
-                new StockFailedEvent(message.OrderId, $"Stock failed for order {message.OrderId}")
-                {
-                    SagaId = message.SagaId
-                },
-                MessagingConstants.StockFailedOrderEventsRoutingKey,
-                token);
+            try
+            {
+                await _rabbitMq.PublishAsync(
+                    new StockFailedEvent(message.OrderId, $"Stock failed for order {message.OrderId}")
+                    {
+                        SagaId = message.SagaId
+                    },
+                    MessagingConstants.StockFailedOrderEventsRoutingKey,
+                    token);
+            }
+            catch (Exception publishEx)
+            {
+                _logger.LogCritical(publishEx, "PublishAsync throw exceptions");
+                throw;
+            }
         }
     }
 }

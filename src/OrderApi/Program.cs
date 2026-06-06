@@ -7,18 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
 
-builder.Services.AddOptions<RabbitMqOptions>()
-    .Bind(builder.Configuration.GetSection("RabbitMq"))
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
-
-builder.Services.AddHttpClient("PaymentApi", client =>
-{
-    var baseUrl = builder.Configuration["PaymentApi:BaseUrl"] ?? "http://localhost:5082";
-    client.BaseAddress = new Uri(baseUrl, UriKind.Absolute);
-});
-
-builder.Services.AddSingleton<RabbitMqConnectionProvider>();
+builder.Services.AddRabbitMqMessaging(builder.Configuration);
 
 builder.Services.AddHostedService<OrderSagaConsumer>();
 
@@ -32,8 +21,7 @@ if (app.Environment.IsDevelopment())
 
 app.MapPost("/orders/purchase", async (
     PurchaseRequest request,
-    IHttpClientFactory httpClientFactory,
-    RabbitMqConnectionProvider rabbitMq,
+    IRabbitMqPublisher rabbitMq,
     CancellationToken cancellationToken) =>
 {
     if (string.IsNullOrWhiteSpace(request.UserEmail))
@@ -52,7 +40,8 @@ app.MapPost("/orders/purchase", async (
         orderId,
         request.UserEmail,
         request.Items.Select(i => new OrderItem(i.Sku, i.Quantity)).ToArray(),
-        DateTime.UtcNow)
+        DateTime.UtcNow,
+        new Payment(request.Payment.CardToken, request.Payment.Amount))
     {
         SagaId = sagaId
     };
@@ -67,6 +56,3 @@ app.Run();
 internal sealed record PurchaseRequest(string UserEmail, List<PurchaseItem> Items, PurchasePayment Payment);
 internal sealed record PurchaseItem(string Sku, int Quantity);
 internal sealed record PurchasePayment(string CardToken, decimal Amount);
-
-internal sealed record ChargeRequest(string CardToken, decimal Amount, Guid CorrelationId);
-internal sealed record ChargeResponse(bool Success, string? Message);
