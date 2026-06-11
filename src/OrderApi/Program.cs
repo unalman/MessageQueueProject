@@ -1,7 +1,8 @@
 using Contracts.Models;
-using Contracts.Events;
+using MediatR;
 using Messaging;
 using OrderApi;
+using OrderApi.Application.Commands;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,6 +11,11 @@ builder.Services.AddOpenApi();
 builder.Services.AddRabbitMqMessaging(builder.Configuration);
 
 builder.Services.AddHostedService<OrderSagaConsumer>();
+
+builder.Services.AddMediatR(cfg =>
+{
+    cfg.RegisterServicesFromAssemblyContaining<CreateOrderCommandHandler>();
+});
 
 var app = builder.Build();
 
@@ -21,7 +27,7 @@ if (app.Environment.IsDevelopment())
 
 app.MapPost("/orders/purchase", async (
     PurchaseRequest request,
-    IRabbitMqPublisher rabbitMq,
+    IMediator mediator,
     CancellationToken cancellationToken) =>
 {
     if (string.IsNullOrWhiteSpace(request.UserEmail))
@@ -33,22 +39,12 @@ app.MapPost("/orders/purchase", async (
     if (request.Payment is null || request.Payment.Amount <= 0 || string.IsNullOrWhiteSpace(request.Payment.CardToken))
         return Results.BadRequest(new { error = "payment.cardToken and payment.amount > 0 are required" });
 
-    var orderId = Guid.NewGuid();
-    var sagaId = Guid.NewGuid();
+    var orderItem = request.Items.Select(x => new OrderItem(x.Sku, x.Quantity)).ToList();
+    var createOrderCommand = new CreateOrderCommand(request.UserEmail, orderItem, new Payment(request.Payment.CardToken, request.Payment.Amount));
 
-    var orderCreatedEvent = new OrderCreatedEvent(
-        orderId,
-        request.UserEmail,
-        request.Items.Select(i => new OrderItem(i.Sku, i.Quantity)).ToArray(),
-        DateTime.UtcNow,
-        new Payment(request.Payment.CardToken, request.Payment.Amount))
-    {
-        SagaId = sagaId
-    };
+    var orderId = await mediator.Send(createOrderCommand);
 
-    await rabbitMq.PublishAsync(orderCreatedEvent, MessagingConstants.OrderCreatedEventsRoutingKey, cancellationToken);
-
-    return Results.Ok(new { orderId, status = "paid" });
+    return Results.Ok(new { orderId, status = "processing" });
 });
 
 app.Run();
