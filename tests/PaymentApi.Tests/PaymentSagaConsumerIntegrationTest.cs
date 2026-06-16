@@ -28,6 +28,14 @@ namespace PaymentApi.Tests
 
             await host.StartAsync();
 
+            var consumer =
+              host.Services
+                  .GetServices<IHostedService>()
+                  .OfType<PaymentSagaConsumer>()
+                  .Single();
+
+            await consumer.Started.Task;
+
             var factory = new ConnectionFactory() { Uri = uri };
 
             await using var connection =
@@ -72,6 +80,7 @@ namespace PaymentApi.Tests
             finally
             {
                 await channel.QueueDeleteAsync(queueName);
+                await host.StopAsync();
             }
         }
 
@@ -82,6 +91,14 @@ namespace PaymentApi.Tests
             var host = CreateHost(uri, false);
 
             await host.StartAsync();
+
+            var consumer =
+           host.Services
+               .GetServices<IHostedService>()
+               .OfType<PaymentSagaConsumer>()
+               .Single();
+
+            await consumer.Started.Task;
 
             var factory = new ConnectionFactory() { Uri = uri };
 
@@ -126,6 +143,7 @@ namespace PaymentApi.Tests
             finally
             {
                 await channel.QueueDeleteAsync(queueName);
+                await host.StopAsync();
             }
         }
 

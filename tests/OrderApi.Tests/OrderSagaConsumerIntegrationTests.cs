@@ -29,46 +29,62 @@ namespace OrderApi.Tests
 
             await host.StartAsync();
 
+            var consumer =
+           host.Services
+               .GetServices<IHostedService>()
+               .OfType<OrderSagaConsumer>()
+               .Single();
+
+            await consumer.Started.Task;
+
             var factory = new ConnectionFactory() { Uri = uri };
 
             await using var connection =
                 await factory.CreateConnectionAsync();
             await using var channel =
                 await connection.CreateChannelAsync();
-
             var queueName = $"test-order-completed-{Guid.NewGuid()}";
 
-            await DeclareTestQueueAsync(channel, queueName, MessagingConstants.OrderCompletedEventsRoutingKey);
+            try
+            {
+                await DeclareTestQueueAsync(channel, queueName, MessagingConstants.OrderCompletedEventsRoutingKey);
 
-            var message = new StockReservedEvent(
-                Guid.NewGuid(),
-                "test@test.com",
-                [
-                    new OrderItem("SKU-1",2)
-                ]);
+                var message = new StockReservedEvent(
+                    Guid.NewGuid(),
+                    "test@test.com",
+                    [
+                        new OrderItem("SKU-1",2)
+                    ]);
 
-            var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(message));
+                var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(message));
 
-            //act
+                //act
 
-            await channel.BasicPublishAsync(
-                MessagingConstants.EventsExchangeName,
-                MessagingConstants.StockReservedOrderEventsRoutingKey,
-                body);
+                await channel.BasicPublishAsync(
+                    MessagingConstants.EventsExchangeName,
+                    MessagingConstants.StockReservedOrderEventsRoutingKey,
+                    body);
 
-            //assert
+                //assert
 
-            BasicGetResult? result = await WaitForMessageAsync(channel, queueName);
+                BasicGetResult? result = await WaitForMessageAsync(channel, queueName);
 
-            result.Should().NotBeNull();
+                result.Should().NotBeNull();
 
-            var json = Encoding.UTF8.GetString(result.Body!.ToArray());
+                var json = Encoding.UTF8.GetString(result.Body!.ToArray());
 
-            var orderCompletedEvent = JsonSerializer.Deserialize<OrderCompletedEvent>(json);
-            orderCompletedEvent.Should().NotBeNull();
-            orderCompletedEvent.OrderId.Should().Be(message.OrderId);
-            orderCompletedEvent.UserEmail.Should().Be(message.UserEmail);
-            orderCompletedEvent.SagaId.Should().Be(message.SagaId);
+                var orderCompletedEvent = JsonSerializer.Deserialize<OrderCompletedEvent>(json);
+                orderCompletedEvent.Should().NotBeNull();
+                orderCompletedEvent.OrderId.Should().Be(message.OrderId);
+                orderCompletedEvent.UserEmail.Should().Be(message.UserEmail);
+                orderCompletedEvent.SagaId.Should().Be(message.SagaId);
+            }
+            finally
+            {
+                await channel.QueueDeleteAsync(queueName);
+                await host.StopAsync();
+            }
+           
         }
 
         private IHost CreateHost(Uri uri)
@@ -129,7 +145,7 @@ namespace OrderApi.Tests
             );
         }
 
-        private static async Task<BasicGetResult?> WaitForMessageAsync(IChannel channel, string queueName, int retryCount = 5)
+        private static async Task<BasicGetResult?> WaitForMessageAsync(IChannel channel, string queueName, int retryCount = 10)
         {
             for (var i = 0; i < retryCount; i++)
             {
