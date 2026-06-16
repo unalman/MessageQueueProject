@@ -48,9 +48,7 @@ namespace Messaging
                 body: bodyBytes,
                 cancellationToken: token);
 
-            logger.LogInformation(
-"Exchange Name: {Exchange}",
-MessagingConstants.EventsExchangeName);
+            logger.LogInformation("Exchange Name: {Exchange}", MessagingConstants.EventsExchangeName);
 
             logger.LogInformation("Published event {EventType} with SagaId {SagaId}", typeof(T).Name, message.SagaId);
         }

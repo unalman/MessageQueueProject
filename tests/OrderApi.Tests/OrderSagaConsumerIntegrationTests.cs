@@ -1,4 +1,5 @@
 ﻿using Contracts.Events;
+using Contracts.Models;
 using FluentAssertions;
 using Messaging;
 using Microsoft.Extensions.DependencyInjection;
@@ -39,7 +40,12 @@ namespace OrderApi.Tests
 
             await DeclareTestQueueAsync(channel, queueName, MessagingConstants.OrderCompletedEventsRoutingKey);
 
-            var message = new StockReservedEvent(Guid.NewGuid(), "test@test.com");
+            var message = new StockReservedEvent(
+                Guid.NewGuid(),
+                "test@test.com",
+                [
+                    new OrderItem("SKU-1",2)
+                ]);
 
             var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(message));
 

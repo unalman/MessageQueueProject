@@ -43,7 +43,10 @@ namespace EmailWorker.Tests
 
                 var message = new OrderCompletedEvent(
                     Guid.NewGuid(),
-                    "test@test.com");
+                    "test@test.com",
+                    [
+                    new OrderItem("SKU-1",2)
+                    ]);
                 var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(message));
 
                 await channel.BasicPublishAsync(

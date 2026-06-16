@@ -63,7 +63,7 @@ namespace EmailWorker
                     throw;
 
                 await _rabbitMq.PublishAsync(
-                    new OrderCompletedEvent(message.OrderId, message.UserEmail)
+                    new OrderCompletedEvent(message.OrderId, message.UserEmail, message.Items)
                     {
                         SagaId = message.SagaId,
                         RetryCount = retryCount + 1

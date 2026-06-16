@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using Messaging.Exceptions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -16,6 +17,7 @@ public abstract class RabbitMqSubscriberService(
     private IChannel? _channel;
     private readonly Dictionary<string, Func<string, CancellationToken, Task>> _handlers
     = new();
+    public TaskCompletionSource Started { get; } = new();
 
     protected abstract string QueueName { get; }
     protected abstract List<string> RoutingKeys { get; }
@@ -51,6 +53,7 @@ public abstract class RabbitMqSubscriberService(
 
         foreach (var key in RoutingKeys)
         {
+            logger.LogInformation($"BINDING {key}");
             await _channel.QueueBindAsync(
                 queue: QueueName,
                 exchange: MessagingConstants.EventsExchangeName,
@@ -70,6 +73,8 @@ public abstract class RabbitMqSubscriberService(
             autoAck: false,
             consumer: consumer,
             cancellationToken: stoppingToken);
+
+        Started.TrySetResult();
 
         logger.LogInformation("Subscribed to {QueueName}", QueueName);
         await Task.Delay(Timeout.Infinite, stoppingToken);
@@ -102,6 +107,22 @@ public abstract class RabbitMqSubscriberService(
                    false,
                    false,
                    cancellationToken);
+        }
+        catch (BusinessException)
+        {
+            await _channel!.BasicNackAsync(
+                      args.DeliveryTag,
+                      false,
+                      false,
+                      cancellationToken);
+        }
+        catch (TransientException)
+        {
+            await _channel!.BasicNackAsync(
+               args.DeliveryTag,
+               false,
+               true,
+               cancellationToken);
         }
         catch
         {

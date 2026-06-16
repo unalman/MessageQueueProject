@@ -49,7 +49,10 @@ namespace StockWorker.Tests
 
             //Assert
 
-            stockStore.GetStock("SKU-1").Should().Be(8);
+            var stock = stockStore.GetStock("SKU-1");
+            stock.Should().NotBeNull();
+            stock.Available.Should().Be(8);
+            stock.Reseverved.Should().Be(2);
 
             rabbitMqMock.Verify(x =>
                 x.PublishAsync(It.IsAny<StockReservedEvent>(),
@@ -92,8 +95,10 @@ namespace StockWorker.Tests
             //act
             await consumer.HandlePaymentCompletedAsync(json, CancellationToken.None);
 
-
-            stockStore.GetStock("SKU-1").Should().Be(10);
+            var stock = stockStore.GetStock("SKU-1");
+            stock.Should().NotBeNull();
+            stock.Available.Should().Be(10);
+            stock.Reseverved.Should().Be(0);
 
             //Assert
             rabbitMqMock.Verify(x =>

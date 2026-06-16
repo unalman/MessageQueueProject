@@ -11,6 +11,7 @@ using System.Text.Json;
 
 namespace StockWorker.Tests
 {
+    [Collection("RabbitMQ Tests")]
     public class StockSagaConsumerIntegrationTests : IClassFixture<RabbitMqFixture>
     {
         private readonly RabbitMqFixture _fixture;
@@ -27,6 +28,9 @@ namespace StockWorker.Tests
             using var host = CreateHost(uri);
 
             await host.StartAsync();
+
+            var stockStore = host.Services.GetRequiredService<InMemoryStockStore>();
+            stockStore.Reset();
 
             //publisher connection
 
@@ -62,18 +66,17 @@ namespace StockWorker.Tests
                 await channel.BasicPublishAsync(
                     MessagingConstants.EventsExchangeName,
                     MessagingConstants.PaymentCompletedRoutingKey,
-                    false,
                     body);
 
                 BasicGetResult? result = await WaitForMessageAsync(channel, queueName);
 
                 // Assert
-
                 result.Should().NotBeNull();
 
-                var stockStore = host.Services.GetRequiredService<InMemoryStockStore>();
-
-                stockStore.GetStock("SKU-1").Should().Be(8);
+                var stock = stockStore.GetStock("SKU-1");
+                stock.Should().NotBeNull();
+                stock.Available.Should().Be(8);
+                stock.Reseverved.Should().Be(2);
 
                 var json = Encoding.UTF8.GetString(result!.Body.ToArray());
 
@@ -86,6 +89,7 @@ namespace StockWorker.Tests
             finally
             {
                 await channel.QueueDeleteAsync(queueName);
+                await host.StopAsync();
             }
         }
 
@@ -96,6 +100,9 @@ namespace StockWorker.Tests
             var host = CreateHost(uri);
 
             await host.StartAsync();
+
+            var stockStore = host.Services.GetRequiredService<InMemoryStockStore>();
+            stockStore.Reset();
 
             var factory = new ConnectionFactory() { Uri = uri };
 
@@ -119,14 +126,19 @@ namespace StockWorker.Tests
                   DateTime.UtcNow);
                 var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(message));
 
-                await channel.BasicPublishAsync(MessagingConstants.EventsExchangeName, MessagingConstants.PaymentCompletedRoutingKey, body);
+                await channel.BasicPublishAsync(
+                    MessagingConstants.EventsExchangeName,
+                    MessagingConstants.PaymentCompletedRoutingKey,
+                    body);
 
                 BasicGetResult? result = await WaitForMessageAsync(channel, queueName);
 
                 result.Should().NotBeNull();
 
-                var stockStore = host.Services.GetRequiredService<InMemoryStockStore>();
-                stockStore.GetStock("SKU-1").Should().Be(10);
+                var stock = stockStore.GetStock("SKU-1");
+                stock.Should().NotBeNull();
+                stock.Available.Should().Be(10);
+                stock.Reseverved.Should().Be(0);
 
                 var stockFailedEvent = JsonSerializer.Deserialize<StockFailedEvent>(Encoding.UTF8.GetString(result!.Body.ToArray()));
 
@@ -136,6 +148,113 @@ namespace StockWorker.Tests
             finally
             {
                 await channel.QueueDeleteAsync(queueName);
+                await host.StopAsync();
+            }
+        }
+
+        [Fact]
+        public async Task OrderCompleted_Should_Commit_Stock()
+        {
+            var uri = new Uri(_fixture.ConnectionString);
+            var host = CreateHost(uri);
+
+            await host.StartAsync();
+
+            var consumer =
+                host.Services
+                    .GetServices<IHostedService>()
+                    .OfType<StockSagaConsumer>()
+                    .Single();
+
+            await consumer.Started.Task;
+
+            var stockStore = host.Services.GetRequiredService<InMemoryStockStore>();
+            stockStore.Reset();
+
+            var factory = new ConnectionFactory() { Uri = uri };
+
+            await using var connection =
+                await factory.CreateConnectionAsync();
+            await using var channel =
+                await connection.CreateChannelAsync();
+
+            try
+            {
+                var sku = "SKU-1";
+                stockStore.TryReserve(sku, 2);
+
+                var message = new OrderCompletedEvent(
+                    Guid.NewGuid(),
+                    "test@test.com",
+                    [
+                        new OrderItem(sku, 2)
+                    ]);
+
+                var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(message));
+
+                await channel.BasicPublishAsync(
+                    MessagingConstants.EventsExchangeName,
+                    MessagingConstants.OrderCompletedEventsRoutingKey,
+                    body);
+
+                var stock = stockStore.GetStock(sku);
+                for (int i = 0; i < 50; i++)
+                {
+                    stock = stockStore.GetStock(sku)!;
+
+                    if (stock.Reseverved == 0)
+                        break;
+
+                    await Task.Delay(100);
+                }
+
+                stock.Should().NotBeNull();
+                stock.Available.Should().Be(8);
+                stock.Reseverved.Should().Be(0);
+            }
+            finally
+            {
+                await host.StopAsync();
+            }
+        }
+
+        [Fact]
+        public async Task OrderCompleted_Should_Not_Commit_Stock_When_No_Reserved_Stock()
+        {
+            var uri = new Uri(_fixture.ConnectionString);
+            var host = CreateHost(uri);
+
+            await host.StartAsync();
+
+            var consumer =
+                host.Services
+                    .GetServices<IHostedService>()
+                    .OfType<StockSagaConsumer>()
+                    .Single();
+
+            await consumer.Started.Task;
+
+            var stockStore = host.Services.GetRequiredService<InMemoryStockStore>();
+            stockStore.Reset();
+
+            var factory = new ConnectionFactory() { Uri = uri };
+
+            await using var connection =
+                await factory.CreateConnectionAsync();
+            await using var channel =
+                await connection.CreateChannelAsync();
+
+            var queueName = $"test-commit-stock-{Guid.NewGuid()}";
+
+            try
+            {
+                var sku = "SKU-1";
+                stockStore.TryReserve(sku, 2);
+            }
+            finally
+            {
+                await channel.QueueDeleteAsync(queueName);
+                await host.StopAsync();
             }
         }
 
@@ -199,7 +318,7 @@ namespace StockWorker.Tests
             );
         }
 
-        private static async Task<BasicGetResult?> WaitForMessageAsync(IChannel channel, string queueName, int retryCount = 5)
+        private static async Task<BasicGetResult?> WaitForMessageAsync(IChannel channel, string queueName, int retryCount = 10)
         {
             for (var i = 0; i < retryCount; i++)
             {

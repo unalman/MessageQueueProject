@@ -1,4 +1,5 @@
 using Contracts.Events;
+using Contracts.Models;
 using Messaging;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
@@ -21,12 +22,14 @@ public sealed class StockSagaConsumer : RabbitMqSubscriberService
         _logger = logger;
 
         RegisterHandler(MessagingConstants.PaymentCompletedRoutingKey, HandlePaymentCompletedAsync);
+        RegisterHandler(MessagingConstants.OrderCompletedEventsRoutingKey, HandleOrderCompletedAsync);
     }
 
     protected override string QueueName => MessagingConstants.StockOrderEventsQueueName;
     protected override List<string> RoutingKeys => new List<string>()
     {
-        MessagingConstants.PaymentCompletedRoutingKey
+        MessagingConstants.PaymentCompletedRoutingKey,
+        MessagingConstants.OrderCompletedEventsRoutingKey
     };
 
     public async Task HandlePaymentCompletedAsync(string body, CancellationToken token)
@@ -37,16 +40,17 @@ public sealed class StockSagaConsumer : RabbitMqSubscriberService
 
         try
         {
+            var reservedItems = new List<OrderItem>();
             foreach (var item in message.Items)
             {
-                if (_stockStore.TryDecrease(item.Sku, item.Quantity, out var remaining))
+                if (_stockStore.TryReserve(item.Sku, item.Quantity))
                 {
                     _logger.LogInformation(
-                        "Stock decreased for SKU {Sku} by {Quantity}. Remaining: {Remaining} (OrderId: {OrderId})",
+                        "Stock decreased for SKU {Sku} by {Quantity}. (OrderId: {OrderId})",
                         item.Sku,
                         item.Quantity,
-                        remaining,
                         message.OrderId);
+                    reservedItems.Add(item);
                 }
                 else
                 {
@@ -55,6 +59,9 @@ public sealed class StockSagaConsumer : RabbitMqSubscriberService
                         item.Sku,
                         item.Quantity,
                         message.OrderId);
+
+                    foreach (var reservedItem in reservedItems)
+                        _stockStore.Release(reservedItem.Sku, reservedItem.Quantity);
 
                     await _rabbitMq.PublishAsync(
                         new StockFailedEvent(message.OrderId, $"Insufficient stock for SKU {item.Sku}")
@@ -69,7 +76,7 @@ public sealed class StockSagaConsumer : RabbitMqSubscriberService
             }
 
             await _rabbitMq.PublishAsync(
-                        new StockReservedEvent(message.OrderId, message.UserEmail),
+                        new StockReservedEvent(message.OrderId, message.UserEmail, message.Items),
                         MessagingConstants.StockReservedOrderEventsRoutingKey,
                         token);
         }
@@ -91,6 +98,32 @@ public sealed class StockSagaConsumer : RabbitMqSubscriberService
                 _logger.LogCritical(publishEx, "PublishAsync throw exceptions");
                 throw;
             }
+        }
+    }
+
+    public async Task HandleOrderCompletedAsync(string body, CancellationToken token)
+    {
+        var message = JsonSerializer.Deserialize<OrderCompletedEvent>(body);
+        if (message is null)
+            return;
+
+        try
+        {
+            foreach (var item in message.Items)
+            {
+                var result = _stockStore.Commit(item.Sku, item.Quantity);
+                if (!result)
+                {
+                    _logger.LogError($"Stock process failed for SKU {item.Sku}");
+                    throw new InvalidOperationException(
+                            $"Commit failed for {item.Sku}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Stock process failed for order {OrderId}", message.OrderId);
+            throw;
         }
     }
 }

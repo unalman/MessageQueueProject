@@ -1,4 +1,5 @@
 ﻿using Contracts.Events;
+using Contracts.Models;
 using FluentAssertions;
 using Messaging;
 using Microsoft.Extensions.Logging;
@@ -22,10 +23,13 @@ namespace OrderApi.Tests
 
             var evt = new StockReservedEvent(
                 Guid.NewGuid(),
-                "test@test.com")
-            {
-                SagaId = Guid.NewGuid(),
-            };
+                "test@test.com",
+                [
+                    new OrderItem("SKU-1",2)
+                ])
+                {
+                    SagaId = Guid.NewGuid(),
+                };
 
             var body = JsonSerializer.Serialize(evt);
 
