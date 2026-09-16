@@ -1,4 +1,6 @@
 ﻿using Contracts.Events;
+using EmailWorker.IntegrationEvents;
+using EmailWorker.IntegrationEvents.Events;
 using Messaging;
 using Microsoft.Extensions.Options;
 using System.Text.Json;

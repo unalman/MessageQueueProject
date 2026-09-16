@@ -5,6 +5,7 @@ using Messaging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using OrderApi.Application.IntegrationEvents.Events;
 using RabbitMQ.Client;
 using System.Text;
 using System.Text.Json;
@@ -30,10 +31,10 @@ namespace OrderApi.Tests
             await host.StartAsync();
 
             var consumer =
-           host.Services
-               .GetServices<IHostedService>()
-               .OfType<OrderSagaConsumer>()
-               .Single();
+                host.Services
+                    .GetServices<IHostedService>()
+                    .OfType<OrderSagaConsumer>()
+                    .Single();
 
             await consumer.Started.Task;
 
@@ -84,7 +85,7 @@ namespace OrderApi.Tests
                 await channel.QueueDeleteAsync(queueName);
                 await host.StopAsync();
             }
-           
+
         }
 
         private IHost CreateHost(Uri uri)

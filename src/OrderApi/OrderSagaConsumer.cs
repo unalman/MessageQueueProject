@@ -1,6 +1,7 @@
 ﻿using Contracts.Events;
 using Messaging;
 using Microsoft.Extensions.Options;
+using OrderApi.Application.IntegrationEvents.Events;
 using System.Text.Json;
 
 namespace OrderApi
@@ -75,6 +76,8 @@ namespace OrderApi
                 },
                 MessagingConstants.OrderCompletedEventsRoutingKey,
                 token);
+
+            _logger.LogInformation($"OrderCompleted OrderId: {message.OrderId}");
         }
     }
 }

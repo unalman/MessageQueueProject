@@ -2,7 +2,7 @@
 using MediatR;
 using Messaging;
 
-namespace OrderApi.Application.Commands
+namespace OrderApi.Application.IntegrationEvents
 {
     public class CreateOrderCommandHandler :
         IRequestHandler<CreateOrderCommand, Guid>

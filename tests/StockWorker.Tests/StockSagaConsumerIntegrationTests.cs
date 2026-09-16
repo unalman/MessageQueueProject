@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
+using StockWorker.IntegrationEvents.Events;
 using System.Text;
 using System.Text.Json;
 

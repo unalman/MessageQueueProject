@@ -1,7 +1,4 @@
-﻿using Contracts.Events;
-using Contracts.Models;
-using FluentAssertions;
-using Messaging;
+﻿using FluentAssertions;
 using System.Net;
 using System.Net.Http.Json;
 

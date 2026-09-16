@@ -2,7 +2,7 @@ using Contracts.Models;
 using MediatR;
 using Messaging;
 using OrderApi;
-using OrderApi.Application.Commands;
+using OrderApi.Application.IntegrationEvents;
 
 var builder = WebApplication.CreateBuilder(args);
 

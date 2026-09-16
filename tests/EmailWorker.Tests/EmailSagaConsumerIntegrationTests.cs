@@ -1,5 +1,6 @@
-﻿using Contracts.Events;
-using Contracts.Models;
+﻿using Contracts.Models;
+using EmailWorker.IntegrationEvents;
+using EmailWorker.IntegrationEvents.Events;
 using FluentAssertions;
 using Messaging;
 using Microsoft.Extensions.DependencyInjection;

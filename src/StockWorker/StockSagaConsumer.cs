@@ -2,6 +2,7 @@ using Contracts.Events;
 using Contracts.Models;
 using Messaging;
 using Microsoft.Extensions.Options;
+using StockWorker.IntegrationEvents.Events;
 using System.Text.Json;
 
 namespace StockWorker;

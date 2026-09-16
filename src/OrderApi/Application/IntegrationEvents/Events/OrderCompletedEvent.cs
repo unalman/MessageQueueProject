@@ -1,6 +1,7 @@
-﻿using Contracts.Models;
+﻿using Contracts;
+using Contracts.Models;
 
-namespace Contracts.Events
+namespace OrderApi.Application.IntegrationEvents.Events
 {
     public sealed record OrderCompletedEvent(
         Guid OrderId,

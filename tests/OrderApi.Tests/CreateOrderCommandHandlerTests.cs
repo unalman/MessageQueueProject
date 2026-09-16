@@ -2,7 +2,7 @@
 using Contracts.Models;
 using FluentAssertions;
 using Messaging;
-using OrderApi.Application.Commands;
+using OrderApi.Application.IntegrationEvents;
 
 namespace OrderApi.Tests
 {

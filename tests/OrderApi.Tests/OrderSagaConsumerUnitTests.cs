@@ -5,6 +5,7 @@ using Messaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
+using OrderApi.Application.IntegrationEvents.Events;
 using System.Text.Json;
 
 namespace OrderApi.Tests
@@ -27,9 +28,9 @@ namespace OrderApi.Tests
                 [
                     new OrderItem("SKU-1",2)
                 ])
-                {
-                    SagaId = Guid.NewGuid(),
-                };
+            {
+                SagaId = Guid.NewGuid(),
+            };
 
             var body = JsonSerializer.Serialize(evt);
 

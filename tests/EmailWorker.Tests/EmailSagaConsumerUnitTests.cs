@@ -1,4 +1,5 @@
-﻿using Contracts.Events;
+﻿using EmailWorker.IntegrationEvents;
+using EmailWorker.IntegrationEvents.Events;
 using Messaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
